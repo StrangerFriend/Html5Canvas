@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html >
+<head>
+    <meta charset="utf-8">
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0;" name="viewport" />
+    <script src="https://unpkg.com/mathjs@6.2.3/dist/math.min.js"></script>
+    <script src="DateUtil.js"></script>
+    <title></title>
+</head>
+<body id="body" onload="initDraw()">
+<button id="btnId" onclick="initparamValuesData('[7904.0,6364.0,9182.0,1655.0,1341.0,2322.0,2661.0]')" hidden="hidden">点击</button>
+<canvas id="canvId"
+        style="background-color: white;
+            text-align: center;
+                "
+>
+</canvas>
+
+</body>
+
+<style>
+        *{margin: 0px;padding: 0px;}
+    </style>
+
+<script>
+
+        let tableMargin=20;//表格的外边距大小
+
+        let paramValuesData=new Array();//外部传入的存储各个点的数据
+
+
+        let verticalLineNums=0;//竖线有几根,对应横坐标的天数
+        let horizontalLineNums=6;//横线数量,对应Y坐标的余额数量值
+
+
+        let xPoints=new Array();//横轴坐标集合
+
+        let yPointScale=new Array();//Y 纵轴坐标集合 从小到大 从上到下
+        let yPointQuantity=new Array();//y轴各点的金额值,从大到小
+
+        let xyPointValues=new Array();//各个点的最终位置,包含坐标 数量 日期
+
+        let canvas=null;
+        let wholeWidth=0;
+        let wholeHeight=0;
+
+
+        let bottomLineLineY=0;//最下面的一条线的y坐标
+        let dateTopSpace=20;
+        let fontHeight=10;
+
+
+
+        /**
+         * 调用方法设置绘制数据，传入纵向坐标数据，横坐标是日期，默认从当天开始
+         * "[7904.0,6364.0,9182.0,1655.0,1341.0,2322.0,2661.0]"
+         * @param {Object} param
+         */
+        function initparamValuesData(param){
+            initparamValuesData2(param);
+            draw();
+            return param;
+        }
+
+        function initparamValuesData2(param){
+            let arrays=JSON.parse(param);
+            paramValuesData.length=0;
+            //转换并保存原生传入的数据
+            for(let item of arrays){
+                paramValuesData.push(item);
+            }
+            clearDataAndResetCanvas();
+
+        }
+
+        /**
+         * 清除数据 重置画布
+         */
+        function clearDataAndResetCanvas(){
+            xPoints.length=0;
+            yPointScale.length=0;
+            yPointQuantity.length=0;
+            xyPointValues.length=0;
+        }
+		
+		/**
+		 * 初始化绘制方法
+		 */
+        function initDraw(){
+			//默认的初始化假数据,正常的话要注释掉这行代码，应该该调用initparamValuesData方法传入数据,
+            initparamValuesData2("[-2001.4981,-7050.7886,3159,3159,3159,3159,3159]");
+            // initparamValuesData2("[438,866,123,118,567,443,675,545,33,88,543,6575,332,323,654,326,6,323,787,877,544,434,434,43,434,342,833,943,454,3232]");
+            draw();
+
+            touchstart();
+            touchmove();
+        }
+
+        /**
+         * 绘制流程方法
+         */
+        function draw(){
+
+            if(paramValuesData.length>7){
+                //30天-画10根线
+                verticalLineNums=10;
+                verticalLineNums++;//添加一根线用来补全最后差的日期,最后一根线的日期间隔要小
+            }else{
+                //7天 画7根线
+                verticalLineNums=paramValuesData.length;
+            }
+
+            //获取body高度
+            wholeWidth=document.getElementById("body").clientWidth;
+            //做初始化准备
+            canvas= document.getElementById("canvId");
+            let ctx=canvas.getContext("2d");
+            //设置画布的宽度和高度
+            canvas.width=wholeWidth;
+            canvas.height=wholeWidth/3*2;
+
+            //设置抗锯齿
+            let width = canvas.width;
+            let height=canvas.height;
+            if (window.devicePixelRatio) {
+                canvas.style.width = width + "px";
+                canvas.style.height = height + "px";
+                canvas.height = height * window.devicePixelRatio;
+                canvas.width = width * window.devicePixelRatio;
+                ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+            }
+
+            //全局保存画布
+            wholeHeight=canvas.clientHeight;
+
+            //图表的边框要离画布的周边有点距离 ,使用变换方法,变换原点位置,
+            //并重新调整绘制使用的宽高
+
+
+            ctx.translate(tableMargin,tableMargin);
+            wholeWidth=wholeWidth-tableMargin*2;
+            wholeHeight=wholeHeight-tableMargin;
+
+            bottomLineLineY=wholeHeight-dateTopSpace-fontHeight;
+
+
+            //每根竖线间的间隔
+            let spaceX=wholeWidth/(verticalLineNums-1);
+            //记录x方向的各个点的位置
+            let xPoint0=new XPoint();
+            xPoint0.xcoordinate=0;
+            xPoints.push(xPoint0);
+            for(let i=1;i<verticalLineNums;i++){//7
+                if(i==verticalLineNums-1){
+                    let xPoint=new XPoint();
+                    xPoint.xcoordinate=spaceX*i-4;
+                    xPoints.push(xPoint);
+                }else{
+                    let xPoint=new XPoint();
+                    xPoint.xcoordinate=spaceX*i;
+                    xPoints.push(xPoint);
+                }
+            }
+
+            //记录y方向的各个点
+            let spaceY=bottomLineLineY/(horizontalLineNums-1);
+            yPointScale.push(0);
+            for(let i=1;i<horizontalLineNums;i++){//7
+                yPointScale.push(spaceY*i);
+            }
+
+            drawGrid();
+            drawHorizontalScale();
+            drawVerticalScale();
+
+            calculateXYPointValues();
+            drawBrokeLine();
+            drawBrokeLineCirclePoint();
+        }
+
+        //绘制横向刻度的日期
+        function drawHorizontalScale (){
+            //获得全部日期数组
+            let recentDays=getRecentlyDays(paramValuesData.length);
+            let ctx=canvas.getContext("2d");
+
+            //计算没跟竖线的比例,x轴每个刻度不一定是0 1 2 3  可能是0 3 6 9
+            let rate=1;//日期与竖线数量相同则比例为1
+            if(paramValuesData.length!=verticalLineNums){
+                rate=paramValuesData.length/(verticalLineNums-1);
+            }
+
+            for(let i=0;i<verticalLineNums;i++){
+                if(i==verticalLineNums-1){
+                    //最后一根线补齐
+                    let dateStr=recentDays[recentDays.length-1];//取出比例后的日期
+                    // ctx.font="30px";
+                    ctx.strokeStyle="#8c9fac";
+                    xPoints[i].paramValuesDataIndex=recentDays.length-1;//记录这个竖线对应的数据索引
+                    // ctx.strokeText(dateStr,xPoints[i].xcoordinate,bottomLineLineY+dateTopSpace);
+                }else{
+                    let dateStr=recentDays[i*rate];//取出比例后的日期
+                    // ctx.font="30px";
+                    ctx.strokeStyle="#8c9fac";
+                    xPoints[i].paramValuesDataIndex=i*rate;//记录这个竖线对应的数据索引
+                    ctx.strokeText(dateStr,xPoints[i].xcoordinate,bottomLineLineY+dateTopSpace);
+
+                }
+
+            }
+        }
+
+
+        //绘制纵坐标,纵向刻度
+        function drawVerticalScale(){
+            //求出第一步每个间隔的距离
+            let min=getMinParamValuesData();
+            let max=getMaxParamValuesData();
+            //计算出两条线间的间隔值
+            let space=(max-min)/(horizontalLineNums-1);
+
+            let spaceDistance=0;
+            if(space>1000){
+                //space在进位时 进百位  1314-1400
+                // space=space/100;//1314 -13.14
+                space=math.divide(space,100);
+                space=parseInt(space);//13
+                space=space+1;//14
+                spaceDistance=space*100;
+            }else{
+                //小于1000
+                space=parseInt(space);//取整,会舍弃小数位
+                //space距离要取整 871-900   223-300  101-200
+                let spaceStr=""+space;
+                let spaceStrLength=spaceStr.length;//字符串长度
+                let firstStr=spaceStr.substr(0,1);//取出第一个字符串
+                let number=new Number(firstStr);
+                number=number.valueOf();
+                number=number+1;
+
+                //计算倍数
+                let multiple=1;
+                for(let i=1;i<spaceStrLength;i++){
+                    multiple=multiple*10;
+                }
+                spaceDistance=math.chain(number).multiply(multiple).done();
+            }
+
+            //保证各个横线的坐标是整数
+            //如果min是小数,则取整减去一位
+            let minBom=Math.floor(min);
+            //统计Y轴各点的金额值
+            for(let i=0;i<horizontalLineNums;i++){
+                let result=math.chain(i).multiply(spaceDistance).add(minBom).done();
+                yPointQuantity.push(result);
+            }
+            yPointQuantity.reverse();
+
+            //绘制各个金额值
+            let ctx=canvas.getContext("2d");
+            ctx.strokeStyle="#8c9fac"
+            for(let i=yPointQuantity.length-1;i>=0;i--){
+                //从下往上绘制
+                let text=yPointQuantity[i];
+                let result=math.chain(yPointScale[i]).subtract(5).done();
+                ctx.strokeText(text,10,result);
+            }
+
+        }
+
+        /**
+         * 绘制网格
+         */
+        function drawGrid(){
+            //绘制竖线
+            let ctx=canvas.getContext("2d");
+            for(let i=0;i<xPoints.length;i++){
+                ctx.beginPath();
+                ctx.strokeStyle="#e9ecef";
+                ctx.lineWidth=1;
+                ctx.moveTo(xPoints[i].xcoordinate,0);
+                ctx.lineTo(xPoints[i].xcoordinate,bottomLineLineY);
+                ctx.stroke();
+            }
+
+            //绘制横线
+            for(let i=0;i<yPointScale.length;i++){
+                ctx.beginPath();
+                ctx.strokeStyle="#e9ecef";
+                ctx.moveTo(0,yPointScale[i]);
+                ctx.lineTo(wholeWidth-4,yPointScale[i]);
+                ctx.stroke();
+            }
+
+        }
+
+        /**
+         * 计算数据点的XY坐标值
+         */
+        function calculateXYPointValues(){
+            //从左向右 从下到上
+            let dates=getRecentlyDays(paramValuesData.length);
+            for(let i=0;i<paramValuesData.length;i++){
+                //计算在Y点的坐标比例
+                let maxMoney=yPointQuantity[0];//最大数量值
+                let minMoney=yPointQuantity[yPointQuantity.length-1];
+                let maxRange=maxMoney-minMoney;//求出最高值是多少,minMoney可能为负数
+                //计算0值的百分比
+                let zeroRate=(0-minMoney)/maxRange;
+                let rate=paramValuesData[i]/maxRange+zeroRate;//计算在y坐标的比例
+                let maxY=yPointScale[yPointScale.length-1];
+                let calculateY=maxY*(1-rate);
+
+                //计算在x点的坐标比例,竖线与日期数量不符时需要使用比例计算x坐标
+                if(paramValuesData.length==verticalLineNums){
+                    let xyPoint=new XyPoint(xPoints[i].xcoordinate,calculateY,paramValuesData[i],dates[i]);
+                    xyPointValues.push(xyPoint);
+                }else{
+
+                    let x=-1;
+                    //rate可能谁出现不近小数,造成精度缺失,这里进行收到矫正
+                    for (let xPoint of xPoints){
+                        if(xPoint.paramValuesDataIndex==i){
+                            //当前数据刚好在竖线上
+                            x=xPoint.xcoordinate;
+                        }
+                    }
+
+                    if(x==-1){
+                        let maxX=xPoints[xPoints.length-1].xcoordinate;
+                        let rate=i/paramValuesData.length;//日期中的第几个,百分比
+                        x=maxX*rate
+                    }
+
+                    let xyPoint=new XyPoint(x,calculateY,paramValuesData[i],dates[i]);
+                    xyPointValues.push(xyPoint);
+                }
+
+            }
+        }
+
+        /**
+         * 绘制折线
+         */
+        function drawBrokeLine(){
+            let ctx=canvas.getContext("2d");
+            ctx.strokeStyle="#2283d0";
+            ctx.beginPath();
+            //从左向右绘制
+            for(let i=0;i<xyPointValues.length;i++){
+                let xyPointValue=xyPointValues[i];
+                if(i==0){
+                    ctx.moveTo(xyPointValue.xPoint,xyPointValue.yPoint);
+                }else{
+                    ctx.lineTo(xyPointValue.xPoint,xyPointValue.yPoint);
+                }
+                ctx.stroke();
+            }
+
+        }
+
+        /**
+         * 绘制折线原点
+         */
+        function drawBrokeLineCirclePoint(){
+            let ctx=canvas.getContext("2d");
+            ctx.fillStyle="#ffffff";
+            ctx.strokeStyle="#2283d0";
+            //从左向右绘制
+            for(let i=0;i<xyPointValues.length;i++){
+                ctx.beginPath();
+                let xyPointValue=xyPointValues[i];
+                ctx.arc(xyPointValue.xPoint,xyPointValue.yPoint,4,0,2*Math.PI);
+                ctx.fill();
+                ctx.stroke();
+            }
+        }
+
+        /**
+         * 画出指示线及悬浮框，
+         * 点击时的提示,
+         */
+        function drawIndicateClick(event){
+            clearDataAndResetCanvas();//清除之前的数据
+            draw();//重新绘制
+            let xClick=event.touches[0].clientX-tableMargin;
+            let baseIndex=0;
+            if(xClick<0){
+                //绘制第一根竖线
+                baseIndex=0;
+                return;
+            }else{
+                //判断在哪个竖线附近
+                for(let i=0;i<xyPointValues.length;i++){
+                    let xyPointValue=xyPointValues[i];
+                    if(xyPointValue.xPoint>xClick){
+                        baseIndex=i;
+                        break;
+                    }
+                }
+
+                //定位到baseIndex或前面的一根
+                let beforeX=xyPointValues[baseIndex-1].xPoint;
+                let afterX=xyPointValues[baseIndex].xPoint;
+                let n1=xClick-beforeX;
+                let n2=afterX-xClick;
+                if(n1<n2){
+                    baseIndex=baseIndex-1;
+                }else{
+                    baseIndex=baseIndex;
+                }
+            }
+
+            //绘制深竖线
+            let xyPointValue=xyPointValues[baseIndex];
+
+            let ctx=canvas.getContext("2d");
+            ctx.beginPath();
+            ctx.strokeStyle="#aaaaaa";
+            ctx.moveTo(xyPointValues[baseIndex].xPoint,0);
+            ctx.lineTo(xyPointValues[baseIndex].xPoint,bottomLineLineY);
+            ctx.stroke();
+
+            //获取字体区长 高
+            let suspendWidth=0;//悬浮框宽度
+            if((""+xyPointValue.date).length>(""+xyPointValue.quantity).length){
+                //日期长
+                suspendWidth=ctx.measureText(xyPointValue.date).width;
+            }else{
+                //数量长
+                suspendWidth=ctx.measureText(xyPointValue.quantity).width;
+            }
+            suspendWidth=suspendWidth+20;
+
+            //绘制悬浮框。 点靠下时,绘制在上边. 点靠左时绘制在右边
+            let originX=xyPointValue.xPoint;
+            let originY=xyPointValue.yPoint;
+            let distanceToOrigin=20;//悬浮框距离原点的距离
+
+            if(xyPointValue.yPoint>wholeHeight/2){
+                //绘制在上边
+                originY=originY-distanceToOrigin-40;
+            }else{
+                //绘制在下边
+                originY=originY+distanceToOrigin;
+            }
+
+            let startX=0;
+            if(baseIndex==0){
+                //第一根线绘制在右边
+                startX=originX+10;
+            }else if(baseIndex==xyPointValues.length-1){
+                //最后一根线绘制在左边
+                startX=originX-suspendWidth-10;
+            }else{
+                startX=originX-suspendWidth/2;
+            }
+
+            //绘制边框
+            ctx.fillStyle="#d7e5f8";
+            ctx.rect(startX,originY-10,suspendWidth,50);
+            ctx.fill();
+
+            ctx.strokeStyle="black"
+            ctx.strokeText(xyPointValue.date,startX+10,originY+10);
+            ctx.strokeText(xyPointValue.quantity,startX+10,originY+30);
+
+        }
+
+        /**
+         * 当手指触摸屏幕时候触发
+         */
+        function touchstart(){
+            canvas.addEventListener("touchstart",function(event){
+                drawIndicateClick(event);
+            })
+
+        }
+
+        function touchmove(){
+            canvas.addEventListener("touchmove",function(event){
+                drawIndicateClick(event);
+            })
+        }
+
+
+        /**
+         * 获取数据数组里的最大值
+         */
+        function getMaxParamValuesData(){
+			if(paramValuesData.length>0){
+				return math.max(paramValuesData);
+			}else{
+				return 0;
+			}
+        }
+
+        /**
+         * 获取数据数组里的最小值
+         */
+        function getMinParamValuesData(){
+			if(paramValuesData.length>0){
+				return math.min(paramValuesData);
+			}else{
+				return 0;
+			}
+            
+        }
+
+        var XPoint=function(){
+            this.xcoordinate=0;//x轴坐标值
+            this.paramValuesDataIndex=0;//对应参数类的索引
+        }
+
+        /**
+         * 数据XY坐标类
+         * @param {Object} x
+         * @param {Object} y
+         */
+        var XyPoint =function(x,y,quantity,date){
+            this.xPoint=x;
+            this.yPoint=y;
+            this.quantity=quantity;
+            this.date=date;
+        }
+
+    </script>
+</html>
